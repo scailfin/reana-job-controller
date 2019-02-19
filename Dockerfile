@@ -7,9 +7,16 @@
 FROM python:3.6-slim
 
 ENV TERM=xterm
+
+# Hardcoded, this needs to be replaced
+# by setting this attribute  
+# in the kubernetes cluster configuration
+ENV VC3USERID=1002
+
 RUN apt-get update && \
     apt-get install -y vim-tiny && \
-    pip install --upgrade pip
+    pip install --upgrade pip && \
+    pip install htcondor
 
 RUN export DEBIAN_FRONTEND=noninteractive ;\
     apt-get -yq install krb5-user \
