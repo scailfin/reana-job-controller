@@ -17,7 +17,7 @@ ENV HTCONDOR_ADDR="<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&n
 RUN apt-get update && \
     apt-get install -y vim-tiny && \
     pip install --upgrade pip && \
-    pip install htcondor
+    pip install htcondor retrying
 
 RUN export DEBIAN_FRONTEND=noninteractive ;\
     apt-get -yq install krb5-user \
