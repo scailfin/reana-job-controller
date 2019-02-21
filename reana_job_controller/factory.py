@@ -15,6 +15,7 @@ from flask import Flask
 from reana_commons.config import REANA_LOG_FORMAT, REANA_LOG_LEVEL
 
 from reana_job_controller import config
+from reana_job_controller.condor import start_watch_jobs_thread
 from reana_job_controller.spec import build_openapi_spec
 
 
