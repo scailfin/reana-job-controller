@@ -20,6 +20,8 @@ from reana_job_controller.job_db import (JOB_DB, job_exists, job_is_cached,
                                          retrieve_backend_job_id, retrieve_job,
                                          retrieve_job_logs)
 from reana_job_controller.condor import condor_delete_job, condor_instantiate_job
+from reana_job_controller.kubernetes_job_manager import KubernetesJobManager
+from reana_job_controller.htcondor_job_manager import HTCondorJobManager
 from reana_job_controller.schemas import Job, JobRequest
 from reana_job_controller.utils import update_workflow_logs
 
@@ -192,7 +194,6 @@ def create_job():  # noqa
     job_request, errors = job_request_schema.load(json_data)
     if errors:
         return jsonify(errors), 400
-<<<<<<< HEAD
     compute_backend = job_request.get(
         'compute_backend',
         current_app.config['DEFAULT_COMPUTE_BACKEND'])
@@ -207,17 +208,6 @@ def create_job():  # noqa
         job_obj = current_app.config['COMPUTE_BACKENDS'][compute_backend](
             **job_request)
     backend_jod_id = job_obj.execute()
-=======
-    job_parameters = dict(job_id=str(job_request['job_id']),
-                          docker_img=job_request['docker_img'],
-                          cmd=job_request['cmd'],
-                          cvmfs_mounts=job_request['cvmfs_mounts'],
-                          env_vars=job_request['env_vars'],
-                          namespace=job_request['experiment'],
-                          shared_file_system=job_request['shared_file_system'],
-                          job_type=job_request.get('job_type'))
-    job_obj = condor_instantiate_job(**job_parameters)
->>>>>>> Initial changes for HTcondor job backend.
     if job_obj:
         job = copy.deepcopy(job_request)
         job['status'] = 'started'
@@ -377,17 +367,12 @@ def delete_job(job_id):  # noqa
     """
     if job_exists(job_id):
         try:
-<<<<<<< HEAD
             compute_backend = request.args.get(
                 'compute_backend',
                 current_app.config['DEFAULT_COMPUTE_BACKEND'])
             backend_job_id = retrieve_backend_job_id(job_id)
             current_app.config['COMPUTE_BACKENDS'][compute_backend].stop(
                 backend_job_id)
-=======
-            #k8s_delete_job(retrieve_k8s_job(job_id))
-            condor_delete_job(retrieve_condor_job(job_id))
->>>>>>> Initial changes for HTcondor job backend.
             return jsonify(), 204
         except ComputingBackendSubmissionError as e:
             return jsonify(
