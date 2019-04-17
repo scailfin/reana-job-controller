@@ -24,8 +24,18 @@ from flask import current_app as app
 from reana_db.database import Session
 from reana_db.models import Job
 
-from reana_job_controller import config, volume_templates
 from reana_job_controller.errors import ComputingBackendSubmissionError
+from reana_job_controller.htcondor_job_manager import HTCondorJobManager
+
+condorJobStatus = {
+    'Unexpanded': 0,
+    'Idle': 1,
+    'Running': 2,
+    'Removed': 3,
+    'Completed': 4,
+    'Held': 5,
+    'Submission_Error': 6
+}
 
 def detach(f):
     """Decorator for creating a forked process"""
@@ -113,15 +123,42 @@ def condor_instantiate_job(job_id, workflow_workspace, docker_img, cmd,
     return clusterid
 
 
+
 def condor_watch_jobs(job_db):
     """Watch currently running HTCondor jobs.
     :param job_db: Dictionary which contains all current jobs.
     """
+    schedd = get_schedd()
+    ads = ['ClusterId', 'JobStatus', 'ExitCode']
     while True:
-        #logging.debug('Starting a new stream request to watch Condor Jobs')
+        logging.debug('Starting a new stream request to watch Condor Jobs')
 
-
-    pass # not implemented yet
+        for job_id, job_dict in job_db.items():
+            if job_db[job_id]['deleted']:
+                continue
+            condor_it = schedd.history('ClusterId == {0}'.format(
+                job_dict['backend_job_id']), ads, match=1)
+            try:
+                condor_job = next(condor_it)
+            except:
+                # Did not match to any job in the history queue yet
+                continue
+            if condor_job['JobStatus'] == condorJobStatus['Completed']:
+                if condor_job['ExitCode'] == 0:
+                    job_db[job_id]['status'] = 'succeeded'
+                else:
+                    logging.info(
+                        'Job job_id: {0}, condor_job_id: {1} failed'.format(
+                            job_id, condor_job['ClusterId']))
+                    job_db[job_id]['status'] = 'failed'
+                # @todo: Grab/Save logs when job either succeeds or fails.
+                job_db[job_id]['deleted'] = True
+            elif condor_job['JobStatus'] == condorJobStatus['Held']:
+                logging.info('Job Was held, will delette and set as failed')
+                CondorJobManager.condor_delete_job(condor_job['ClusterId'])
+                job_db[job_id]['deleted'] == True
+             
+        time.sleep(120)
 
 def start_watch_jobs_thread(JOB_DB):
     """Watch changes on jobs within HTCondor."""
