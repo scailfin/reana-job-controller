@@ -171,7 +171,7 @@ setup_container
 # temporary wrapper file named tmpjob.
 tmpjob=$(mktemp -p .)
 chmod +x $tmpjob 
-echo "$CONTAINER_PATH" "$cntr_arguments" "bash -c \"cd /reana; ${@:3}\"" > $tmpjob
+echo "$CONTAINER_PATH" "$cntr_arguments" "${@:3}" > $tmpjob
 bash $tmpjob
 res=$?
 rm $tmpjob
