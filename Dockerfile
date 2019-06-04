@@ -19,7 +19,7 @@ RUN useradd -u $VC3USERID vc3user
 RUN apt-get update && \
     apt-get install -y vim-tiny && \
     pip install --upgrade pip && \
-    pip install htcondor retrying
+    pip install htcondor==8.9.1 retrying
 
 RUN export DEBIAN_FRONTEND=noninteractive ;\
     apt-get -yq install krb5-user \
