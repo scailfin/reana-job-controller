@@ -10,17 +10,19 @@
 
 import ast
 import logging
+import os
 import traceback
 import uuid
 
+from flask import current_app
 from kubernetes.client.models.v1_delete_options import V1DeleteOptions
 from kubernetes.client.rest import ApiException
 from reana_commons.config import CVMFS_REPOSITORIES, K8S_DEFAULT_NAMESPACE
 from reana_commons.k8s.api_client import current_k8s_batchv1_api_client
+from reana_commons.k8s.secrets import REANAUserSecretsStore
 from reana_commons.k8s.volumes import get_k8s_cvmfs_volume, get_shared_volume
+from reana_db.models import User
 
-from reana_job_controller.config import (MAX_JOB_RESTARTS,
-                                         SHARED_VOLUME_PATH_ROOT)
 from reana_job_controller.errors import ComputingBackendSubmissionError
 from reana_job_controller.job_manager import JobManager
 
@@ -28,7 +30,7 @@ from reana_job_controller.job_manager import JobManager
 class KubernetesJobManager(JobManager):
     """Kubernetes job management."""
 
-    def __init__(self, docker_img='', cmd=[], env_vars={}, job_id=None,
+    def __init__(self, docker_img=None, cmd=None, env_vars=None, job_id=None,
                  workflow_uuid=None, workflow_workspace=None,
                  cvmfs_mounts='false', shared_file_system=False):
         """Instanciate kubernetes job manager.
@@ -71,7 +73,7 @@ class KubernetesJobManager(JobManager):
                 'namespace': K8S_DEFAULT_NAMESPACE
             },
             'spec': {
-                'backoffLimit': MAX_JOB_RESTARTS,
+                'backoffLimit': current_app.config['MAX_JOB_RESTARTS'],
                 'autoSelector': True,
                 'template': {
                     'metadata': {
@@ -93,6 +95,40 @@ class KubernetesJobManager(JobManager):
                 }
             }
         }
+        user_id = os.getenv('REANA_USER_ID')
+        secrets_store = REANAUserSecretsStore(user_id)
+        user_secrets = secrets_store.get_secrets()
+
+        for secret in user_secrets:
+            name = secret['name']
+            if secret['type'] == 'env':
+                job['spec']['template']['spec']['containers'][0]['env'].append(
+                    {
+                        'name': name,
+                        'valueFrom': {
+                            'secretKeyRef': {
+                                'name': user_id,
+                                'key': name
+                            }
+                        }
+                    })
+
+        job['spec']['template']['spec']['volumes'].append(
+            {
+                'name': user_id,
+                'secret': {
+                    'secretName': user_id
+                }
+            }
+        )
+        job['spec']['template']['spec']['containers'][0][
+            'volumeMounts'] \
+            .append(
+            {
+                'name': user_id,
+                'mountPath': "/etc/reana/secrets",
+                'readOnly': True
+            })
 
         if self.env_vars:
             for var, value in self.env_vars.items():
@@ -108,7 +144,7 @@ class KubernetesJobManager(JobManager):
             for cvmfs_mount_path in ast.literal_eval(self.cvmfs_mounts):
                 if cvmfs_mount_path in CVMFS_REPOSITORIES:
                     cvmfs_map[
-                        CVMFS_REPOSITORIES[cvmfs_mount_path]] =  \
+                        CVMFS_REPOSITORIES[cvmfs_mount_path]] = \
                             cvmfs_mount_path
 
             for repository, mount_path in cvmfs_map.items():
@@ -125,7 +161,8 @@ class KubernetesJobManager(JobManager):
         try:
             api_response = \
                 current_k8s_batchv1_api_client.create_namespaced_job(
-                    namespace=K8S_DEFAULT_NAMESPACE, body=job)
+                    namespace=K8S_DEFAULT_NAMESPACE,
+                    body=job)
             return backend_job_id
         except ApiException as e:
             logging.debug("Error while connecting to Kubernetes"
@@ -146,7 +183,8 @@ class KubernetesJobManager(JobManager):
             delete_options = V1DeleteOptions(
                 propagation_policy=propagation_policy)
             current_k8s_batchv1_api_client.delete_namespaced_job(
-                backend_job_id, K8S_DEFAULT_NAMESPACE, body=delete_options)
+                backend_job_id, K8S_DEFAULT_NAMESPACE,
+                body=delete_options)
         except ApiException as e:
             logging.error(
                 'An error has occurred while connecting to Kubernetes API '
@@ -158,8 +196,9 @@ class KubernetesJobManager(JobManager):
 
         :param job: Kubernetes job spec.
         """
-        volume_mount, volume = get_shared_volume(self.workflow_workspace,
-                                                 SHARED_VOLUME_PATH_ROOT)
+        volume_mount, volume = get_shared_volume(
+            self.workflow_workspace,
+            current_app.config['SHARED_VOLUME_PATH_ROOT'])
         job['spec']['template']['spec']['containers'][0][
             'volumeMounts'].append(volume_mount)
         job['spec']['template']['spec']['volumes'].append(volume)

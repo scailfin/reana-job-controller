@@ -6,31 +6,34 @@
 # REANA is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 
-"""HTCondor Job Manager."""
+"""VC3 / HTCondor Job Manager."""
 
-import ast
+#import ast
 import logging
 import traceback
 import uuid
 import htcondor
 import classad
 import os
-from retrying import retry
 import re
 import shutil
 import filecmp
 
+from retrying import retry
+from flas import current_app
 from kubernetes.client.rest import ApiException
-from reana_commons.config import CVMFS_REPOSITORIES, K8S_DEFAULT_NAMESPACE
+from reana_commons.config import K8S_DEFAULT_NAMESPACE
+from reana_db.database import Session
+from reana_db.models import Workflow
+
+from reana_job_controller.job_manager import JobManager
 
 # What's defined in these? Add stuff for condor? i.e. get_schedd() etc
 #from reana_commons.k8s.api_client import current_k8s_batchv1_api_client
 #from reana_commons.k8s.volumes import get_k8s_cvmfs_volume, get_shared_volume
 
-from reana_job_controller.config import (MAX_JOB_RESTARTS,
-                                         SHARED_VOLUME_PATH_ROOT)
-from reana_job_controller.errors import ComputingBackendSubmissionError
-from reana_job_controller.job_manager import JobManager
+#from reana_job_controller.config import (MAX_JOB_RESTARTS,
+#                                         SHARED_VOLUME_PATH_ROOT)
 
 def detach(f):
     """Decorator for creating a forked process"""
@@ -55,7 +58,7 @@ def detach(f):
 
     return fork
 
-@retry(stop_max_attempt_number=MAX_JOB_RESTARTS)
+#@retry(stop_max_attempt_number=MAX_JOB_RESTARTS)
 @detach
 def submit(schedd, sub):
     try:
@@ -107,13 +110,13 @@ def get_wrapper(shared_path):
     
     return wrapper
 
-class HTCondorJobManager(JobManager):
-    """HTCondor job management."""
+class HTCondorJobManagerVC3(JobManager):
+    """VC3 HTCondor job management."""
 
     def __init__(self, docker_img='', cmd='', env_vars={}, job_id=None,
                  workflow_uuid=None, workflow_workspace=None,
                  cvmfs_mounts='false', shared_file_system=False):
-        """Instantiate HTCondor job manager.
+        """Instantiate VC3 specific HTCondor job manager.
 
         :param docker_img: Docker image.
         :type docker_img: str
@@ -137,7 +140,7 @@ class HTCondorJobManager(JobManager):
         self.env_vars = env_vars or {}
         self.job_id = job_id
         self.workflow_uuid = workflow_uuid
-        self.backend = "HTCondor"
+        self.backend = "VC3"
         self.workflow_workspace = workflow_workspace
         self.cvmfs_mounts = cvmfs_mounts
         self.shared_file_system = shared_file_system
@@ -147,17 +150,13 @@ class HTCondorJobManager(JobManager):
 
     @JobManager.execution_hook
     def execute(self):
-        """Execute / submit a job with HTCondor."""
+        """Execute / submit a job to HTCondor."""
         sub = htcondor.Submit()
         sub['executable'] = self.wrapper
-        # condor arguments require double quotes to be escaped
-        #sub['arguments'] = 'exec --home .{0}:{0} docker://{1} {2}'.format(self.workflow_workspace,
-        #        self.docker_img, re.sub(r'"', '\\"', self.cmd))
         sub['arguments'] = "{0} {1} {2}".format(self.workflow_workspace,self.docker_img,
                 re.sub(r'"', '\\"', self.cmd))
         sub['Output'] = '/tmp/$(Cluster)-$(Process).out'
         sub['Error'] = '/tmp/$(Cluster)-$(Process).err'
-        #sub['transfer_input_files'] = get_input_files(self.workflow_workspace)
         sub['InitialDir'] = '/tmp'
         sub['+WantIOProxy'] = 'true'
         job_env = 'reana_workflow_dir={0}'.format(self.workflow_workspace)

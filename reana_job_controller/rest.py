@@ -10,7 +10,6 @@
 
 import copy
 import json
-
 from flask import Blueprint, current_app, jsonify, request
 
 from reana_job_controller.errors import ComputingBackendSubmissionError
@@ -18,8 +17,6 @@ from reana_job_controller.job_db import (JOB_DB, job_exists, job_is_cached,
                                          retrieve_all_jobs,
                                          retrieve_backend_job_id, retrieve_job,
                                          retrieve_job_logs)
-from reana_job_controller.kubernetes_job_manager import KubernetesJobManager
-from reana_job_controller.htcondor_job_manager import HTCondorJobManager
 from reana_job_controller.schemas import Job, JobRequest
 
 blueprint = Blueprint('jobs', __name__)
@@ -193,28 +190,17 @@ def create_job():  # noqa
     job_request, errors = job_request_schema.load(json_data)
     if errors:
         return jsonify(errors), 400
-    backend = job_request.get('backend', 'HTCondor')
-    if backend == 'Kubernetes':
-        job_obj = KubernetesJobManager(
-            docker_img=job_request['docker_img'],
-            cmd=job_request['cmd'],
-            env_vars=job_request['env_vars'],
-            workflow_uuid=job_request['workflow_uuid'],
-            workflow_workspace=str(job_request['workflow_workspace']),
-            cvmfs_mounts=job_request['cvmfs_mounts'],
-            shared_file_system=job_request['shared_file_system']
-        )
-    elif backend =='HTCondor':
-        job_obj = HTCondorJobManager(
-            docker_img=job_request['docker_img'],
-            cmd=job_request['cmd'],
-            env_vars=job_request['env_vars'],
-            workflow_uuid=job_request['workflow_uuid'],
-            workflow_workspace=str(job_request['workflow_workspace']),
-            cvmfs_mounts=job_request['cvmfs_mounts'],
-            shared_file_system=job_request['shared_file_system']
-        )
-
+    backend = job_request.get('backend',
+                              current_app.config['DEFAULT_JOB_BACKEND'])
+    job_obj = current_app.config['JOB_BACKENDS'][backend](
+        docker_img=job_request['docker_img'],
+        cmd=job_request['cmd'],
+        env_vars=job_request['env_vars'],
+        workflow_uuid=job_request['workflow_uuid'],
+        workflow_workspace=str(job_request['workflow_workspace']),
+        cvmfs_mounts=job_request['cvmfs_mounts'],
+        shared_file_system=job_request['shared_file_system']
+    )
     backend_jod_id = job_obj.execute()
     if job_obj:
         job = copy.deepcopy(job_request)
@@ -346,6 +332,11 @@ def delete_job(job_id):  # noqa
          description: Required. ID of the job to be deleted.
          required: true
          type: string
+       - name: backend
+         in: query
+         description: Job execution backend.
+         required: false
+         type: string
       responses:
         204:
           description: >-
@@ -369,9 +360,11 @@ def delete_job(job_id):  # noqa
     """
     if job_exists(job_id):
         try:
+            backend = request.args.get(
+                'backend',
+                current_app.config['DEFAULT_JOB_BACKEND'])
             backend_job_id = retrieve_backend_job_id(job_id)
-            #KubernetesJobManager.stop(backend_job_id)
-            HTCondorJobManager.stop(backend_job_id)
+            current_app.config['JOB_BACKENDS'][backend].stop(backend_job_id)
             return jsonify(), 204
         except ComputingBackendSubmissionError as e:
             return jsonify(

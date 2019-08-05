@@ -175,10 +175,13 @@ setup_container
 # temporary wrapper file named tmpjob.
 tmpjob=$(mktemp -p .)
 chmod +x $tmpjob 
+
+# Checking for aprun on PBS systems
 if command -v aprun; then
     echo -n "aprun -b -n 1 -- " > $tmpjob
 fi
 
+# Placing workflow step into a file to execute
 echo "$CONTAINER_ENV" "$CONTAINER_PATH" "$CNTR_ARGUMENTS" "${@:3} " >> $tmpjob
 bash $tmpjob
 res=$?
@@ -190,7 +193,7 @@ if [ $res != 0 ]; then
 fi
 
 ###### Stageout ###########
-# TODO: This shoul be done in an epilogue
+# TODO: This should be done in an epilogue
 # via +PostCmd, eventually.
 # Not implemented yet.
 # Read files from $reana_workflow_outputs
@@ -203,7 +206,7 @@ fi
 # Use vc3-builder to get a static version
 # of parrot (eventually, a static version
 # of the chirp client only).
-if [ "x$REANA_WORKFLOW_DIR" == "x" ]; then
+if [ -z "$REANA_WORKFLOW_DIR" ]; then
     echo "[Info]: Nothing to stage out"
     exit $res
 fi
