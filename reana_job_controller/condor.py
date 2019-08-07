@@ -6,7 +6,9 @@
 # REANA is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 
-"""HTCondor wrapper. Utilize libfactory's htcondorlib for job submission"""
+
+"""Condor file....Needs work"""
+
 
 import re
 import json
@@ -26,8 +28,8 @@ from reana_db.database import Session
 from reana_db.models import Job
 
 from reana_job_controller.errors import ComputingBackendSubmissionError
-from reana_job_controller.htcondor_job_manager import HTCondorJobManager
-from reana_job_controller.htcondor_job_manager import get_schedd
+from reana_job_controller.htcondorvc3_job_manager import HTCondorJobManagerVC3
+from reana_job_controller.htcondorvc3_job_manager import get_schedd
 
 condorJobStatus = {
     'Unexpanded': 0,

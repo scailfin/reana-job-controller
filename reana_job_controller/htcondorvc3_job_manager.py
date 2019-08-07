@@ -20,7 +20,7 @@ import shutil
 import filecmp
 
 from retrying import retry
-from flas import current_app
+from flask import current_app
 from kubernetes.client.rest import ApiException
 from reana_commons.config import K8S_DEFAULT_NAMESPACE
 from reana_db.database import Session
@@ -145,7 +145,8 @@ class HTCondorJobManagerVC3(JobManager):
         self.cvmfs_mounts = cvmfs_mounts
         self.shared_file_system = shared_file_system
         self.schedd = get_schedd()
-        self.wrapper = get_wrapper(SHARED_VOLUME_PATH_ROOT)
+        self.wrapper = get_wrapper(current_app.config['SHARED_VOLUME_PATH_ROOT'])
+
 
 
     @JobManager.execution_hook
@@ -176,8 +177,3 @@ class HTCondorJobManagerVC3(JobManager):
         """
         self.schedd.act(htcondor.JobAction.Remove, 'ClusterId==%d' % backend_job_id)
 
-
-    def add_shared_volume(self, job):
-        """Add shared CephFS volume to a given job.
-        """
-        pass #Not Implemented yet

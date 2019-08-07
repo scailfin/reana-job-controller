@@ -13,6 +13,7 @@ import os
 from reana_job_controller.htcondorcern_job_manager import \
     HTCondorJobManagerCERN
 from reana_job_controller.kubernetes_job_manager import KubernetesJobManager
+from reana_job_controller.htcondorvc3_job_manager import HTCondorJobManagerVC3
 
 MAX_JOB_RESTARTS = 3
 """Number of retries for a job before considering it as failed."""
@@ -23,11 +24,11 @@ SHARED_VOLUME_PATH_ROOT = os.getenv('SHARED_VOLUME_PATH_ROOT', '/var/reana')
 JOB_BACKENDS = {
     'kubernetes': KubernetesJobManager,
     'htcondorcern': HTCondorJobManagerCERN,
-    'htcondorVC3' : HTCondorJobManager
+    'htcondorvc3' : HTCondorJobManagerVC3
 }
 """Supported job backends and corresponding management class."""
 
-DEFAULT_JOB_BACKEND = 'kubernetes'
+DEFAULT_JOB_BACKEND = 'htcondorvc3'
 """Default compute backend for job submission."""
 
 HTCONDOR_SUBMISSION_JOB_IMG = os.getenv('HTCONDOR_SUBMISSION_JOB_IMG',
