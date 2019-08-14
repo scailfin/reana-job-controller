@@ -72,7 +72,7 @@ def condor_watch_jobs(job_db):
                 job_db[job_id]['deleted'] = True
             elif condor_job['JobStatus'] == condorJobStatus['Held']:
                 logging.info('Job Was held, will delette and set as failed')
-                CondorJobManager.condor_delete_job(condor_job['ClusterId'])
+                HTCondorJobManagerVC3.condor_delete_job(condor_job['ClusterId'])
                 job_db[job_id]['deleted'] == True
              
         time.sleep(120)
