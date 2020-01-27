@@ -6,7 +6,7 @@
 # REANA is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 
-"""HTCondor Job Manager."""
+"""HTCondor VC3 Job Manager."""
 
 import ast
 import logging
@@ -20,17 +20,12 @@ import re
 import shutil
 import filecmp
 
-from kubernetes.client.rest import ApiException
-from reana_commons.config import CVMFS_REPOSITORIES, K8S_DEFAULT_NAMESPACE
-
-# What's defined in these? Add stuff for condor? i.e. get_schedd() etc
-#from reana_commons.k8s.api_client import current_k8s_batchv1_api_client
-#from reana_commons.k8s.volumes import get_k8s_cvmfs_volume, get_shared_volume
-
 from reana_job_controller.config import (MAX_JOB_RESTARTS,
                                          SHARED_VOLUME_PATH_ROOT)
 from reana_job_controller.errors import ComputingBackendSubmissionError
 from reana_job_controller.job_manager import JobManager
+
+MAX_NUM_RESTARTS = 5
 
 def detach(f):
     """Decorator for creating a forked process"""
@@ -83,7 +78,6 @@ def get_schedd():
     """Find and return the HTCondor sched.
     :returns: htcondor schedd object."""
 
-    # Getting remote scheduler
     schedd_ad = classad.ClassAd()
     schedd_ad["MyAddress"] = os.environ.get("HTCONDOR_ADDR", None) 
     schedd = htcondor.Schedd(schedd_ad)
@@ -107,42 +101,45 @@ def get_wrapper(shared_path):
     
     return wrapper
 
-class HTCondorJobManager(JobManager):
-    """HTCondor job management."""
+class HTCondorJobManagerVC3(JobManager):
+    """HTCondor (VC3) job management."""
 
-    def __init__(self, docker_img='', cmd='', env_vars={}, job_id=None,
-                 workflow_uuid=None, workflow_workspace=None,
-                 cvmfs_mounts='false', shared_file_system=False):
+    def __init__(self, docker_img=None, cmd=None, prettified_cmd=None,
+                 env_vars=None, workflow_uuid=None, workflow_workspace=None,
+                 cvmfs_mounts='false', shared_file_system=False,
+                 job_name=None, kerberos=False, kubernetes_uid=None):
         """Instantiate HTCondor job manager.
 
         :param docker_img: Docker image.
         :type docker_img: str
         :param cmd: Command to execute.
         :type cmd: list
+        :param prettified_cmd: pretified version of command to execute.
+        :type prettified_cmd: str
         :param env_vars: Environment variables.
         :type env_vars: dict
-        :param job_id: Unique job id.
-        :type job_id: str
-        :param workflow_id: Unique workflow id.
-        :type workflow_id: str
+        :param workflow_uuid: Unique workflow id.
+        :type workflow_uuid: str
         :param workflow_workspace: Workflow workspace path.
         :type workflow_workspace: str
         :param cvmfs_mounts: list of CVMFS mounts as a string.
         :type cvmfs_mounts: str
         :param shared_file_system: if shared file system is available.
         :type shared_file_system: bool
+        :param job_name: Name of the job
+        :type job_name: str
         """
         self.docker_img = docker_img or ''
         self.cmd = cmd or ''
         self.env_vars = env_vars or {}
         self.job_id = job_id
         self.workflow_uuid = workflow_uuid
-        self.backend = "HTCondor"
+        self.backend = "HTCondorVC3"
         self.workflow_workspace = workflow_workspace
         self.cvmfs_mounts = cvmfs_mounts
         self.shared_file_system = shared_file_system
         self.schedd = get_schedd()
-        self.wrapper = get_wrapper(SHARED_VOLUME_PATH_ROOT)
+        self.wrapper = get_wrapper(current_app.config['SHARED_VOLUME_PATH_ROOT'])
 
 
     @JobManager.execution_hook
@@ -150,14 +147,10 @@ class HTCondorJobManager(JobManager):
         """Execute / submit a job with HTCondor."""
         sub = htcondor.Submit()
         sub['executable'] = self.wrapper
-        # condor arguments require double quotes to be escaped
-        #sub['arguments'] = 'exec --home .{0}:{0} docker://{1} {2}'.format(self.workflow_workspace,
-        #        self.docker_img, re.sub(r'"', '\\"', self.cmd))
         sub['arguments'] = "{0} {1} {2}".format(self.workflow_workspace,self.docker_img,
                 re.sub(r'"', '\\"', self.cmd))
         sub['Output'] = '/tmp/$(Cluster)-$(Process).out'
         sub['Error'] = '/tmp/$(Cluster)-$(Process).err'
-        #sub['transfer_input_files'] = get_input_files(self.workflow_workspace)
         sub['InitialDir'] = '/tmp'
         sub['+WantIOProxy'] = 'true'
         job_env = 'reana_workflow_dir={0}'.format(self.workflow_workspace)

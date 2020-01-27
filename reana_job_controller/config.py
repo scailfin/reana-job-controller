@@ -14,6 +14,8 @@ from reana_commons.config import WORKFLOW_RUNTIME_USER_UID
 
 from reana_job_controller.htcondorcern_job_manager import \
     HTCondorJobManagerCERN
+from reana_job_controller.htcondorvc3_job_manager import \
+    HTCondorJobManagerVC3
 from reana_job_controller.job_monitor import (JobMonitorHTCondorCERN,
                                               JobMonitorKubernetes,
                                               JobMonitorSlurmCERN)
@@ -26,6 +28,7 @@ SHARED_VOLUME_PATH_ROOT = os.getenv('SHARED_VOLUME_PATH_ROOT', '/var/reana')
 COMPUTE_BACKENDS = {
     'kubernetes': KubernetesJobManager,
     'htcondorcern': HTCondorJobManagerCERN,
+    'htcondorvc3': HTCondorJobManagerVC3,
     'slurmcern': SlurmJobManagerCERN
 }
 """Supported job compute backends and corresponding management class."""
@@ -38,7 +41,7 @@ JOB_MONITORS = {
 """Classes responsible for monitoring specific backend jobs"""
 
 
-DEFAULT_COMPUTE_BACKEND = 'kubernetes'
+DEFAULT_COMPUTE_BACKEND = 'htcondorvc3'
 """Default job compute backend."""
 
 JOB_HOSTPATH_MOUNTS = []

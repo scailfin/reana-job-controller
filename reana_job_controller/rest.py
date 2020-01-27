@@ -20,8 +20,6 @@ from reana_job_controller.job_db import (JOB_DB, job_exists, job_is_cached,
                                          retrieve_backend_job_id, retrieve_job,
                                          retrieve_job_logs)
 from reana_job_controller.condor import condor_delete_job, condor_instantiate_job
-from reana_job_controller.kubernetes_job_manager import KubernetesJobManager
-from reana_job_controller.htcondor_job_manager import HTCondorJobManager
 from reana_job_controller.schemas import Job, JobRequest
 from reana_job_controller.utils import update_workflow_logs
 
